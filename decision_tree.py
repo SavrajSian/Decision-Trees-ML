@@ -13,25 +13,27 @@ class Node:
 
 def find_split(data):
     # Finds the attribute and value with the highest information gain
-    # Sort columns -> take median -> for each column, determine information gain with median
+    # Sort a column -> take two adjacent values mean -> calculate info gain on this mean
     max_gain = 0
     best_attribute, best_value = 0, 0
     best_l_split, best_r_split = [[]], [[]]
-    i = 0
+    attr = 0
+    h_all = entropy(data)
     for col in data[:, :-1].T:
         sorted_col = np.sort(col)
-        median = np.median(np.sort(col))
-        l_split = data[col < median]  # Half to left of median
-        r_split = data[col >= median]  # Half to right of median
-        curr_gain = info_gain(data, l_split, r_split)
+        for i in range(sorted_col.size - 1):
+            mp = (sorted_col[i] + sorted_col[i + 1]) / 2  # Mean of adjacent values
+            l_split = data[col < mp]  # Data to left of midpoint
+            r_split = data[col >= mp]  # Data to right of midpoint
+            curr_gain = info_gain(h_all, l_split, r_split)
 
-        if curr_gain > max_gain:
-            max_gain = curr_gain
-            best_l_split = l_split
-            best_r_split = r_split
-            best_attribute = i
-            best_value = median
-        i += 1
+            if curr_gain > max_gain:
+                max_gain = curr_gain
+                best_l_split = l_split
+                best_r_split = r_split
+                best_attribute = attr
+                best_value = mp
+        attr += 1
     return best_attribute, best_value, best_l_split, best_r_split
 
 
@@ -150,8 +152,21 @@ def k_fold_cross_validation(dataset, k):
 
 
 if __name__ == "__main__":
+    print("Clean")
     data_clean = np.loadtxt("./wifi_db/clean_dataset.txt")
-    root_clean, depth_clean = decision_tree_learning(data_clean, 0)
-    print(fit(root_clean, [-50, -68, -48, -56, -63, -80, -77]))
+    k_fold_cross_validation(data_clean, 10)
+
+    print("Noisy")
+    data_noisy = np.loadtxt("./wifi_db/noisy_dataset.txt")
+    k_fold_cross_validation(data_noisy, 10)
+
+    # train_clean, test_clean = split_dataset(data_clean, 0.2)
+    # root_clean, depth_clean = decision_tree_learning(train_clean, 0)
+    # print("Clean")
+    # evaluate(root_clean, test_clean)
+    #
     # data_noisy = np.loadtxt("./wifi_db/noisy_dataset.txt")
-    # print(data_noisy)
+    # train_noisy, test_noisy = split_dataset(data_noisy, 0.2)
+    # root_noisy, depth_noisy = decision_tree_learning(train_noisy, 0)
+    # print("Noisy")
+    # evaluate(root_noisy, test_noisy)
