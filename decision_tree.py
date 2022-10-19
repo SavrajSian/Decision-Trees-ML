@@ -114,9 +114,19 @@ def draw_tree(model):
 
 
 def calc_recall_precision(confusion_matrix):
-    # Calculate recall and precision rates per class
-    pass
+    # Calculate recall and precision rates and f1 measures per class
+    precision = []
+    recall = []
 
+    for i in range(0, 4):
+        precision.append(confusion_matrix[i][i]/np.sum(confusion_matrix[i])) #diagonal element divided by sum along corresponding row
+        recall.append(confusion_matrix[i][i]/np.sum(confusion_matrix, axis=0)[i]) #diagonal element divided by sum along corresponding column
+
+    f1 = []
+    for i in range(np.shape(confusion_matrix)[0]):
+        f1 = np.append(f1, 2*precision[i]*recall[i]/(precision[i]+recall[i]))
+
+    return recall, precision, f1
 
 def prune(model):
     #  TODO: evaluates and prunes a given model (probably recursive)
@@ -144,11 +154,12 @@ def k_fold_cross_validation(dataset, k):
         data_buckets.append(test)  # Add back to end
         confusion_matrix = update_confusion_matrix(confusion_matrix, model, test)
 
-    # TODO: Calculate recall and precision
     accuracy = np.diag(confusion_matrix).sum() / confusion_matrix.sum()
     print(confusion_matrix)
     print("Accuracy " + str(100 * accuracy))
     print(np.sum(confusion_matrix))
+    recall, precision, f1 = calc_recall_precision(confusion_matrix)
+    print("Recall = ", recall, "Precision = ", precision, "F1 score = ", f1)
 
 
 if __name__ == "__main__":
