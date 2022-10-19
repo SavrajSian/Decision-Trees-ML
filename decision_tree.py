@@ -11,21 +11,21 @@ class Node:
 
 
 def find_split(data):
-    # Finds the attribute and value with highest information gain
+    # Finds the attribute and value with the highest information gain
     # Sort columns -> take median -> for each column, determine information gain with median
-    initial_entropy = entropy(data)
-    s_all = np.shape(data)[1]
-    highest_information_gain = 0
+    max_gain = 0
     best_attribute, best_value = 0, 0
     best_l_split, best_r_split = [[]], [[]]
     i = 0
     for col in data[:, :-1].T:
+        sorted_col = np.sort(col)
         median = np.median(np.sort(col))
         l_split = data[col < median]  # Half to left of median
         r_split = data[col >= median]  # Half to right of median
-        information_gain = info_gain(data, l_split, r_split)
+        curr_gain = info_gain(data, l_split, r_split)
 
-        if information_gain > highest_information_gain:
+        if curr_gain > max_gain:
+            max_gain = curr_gain
             best_l_split = l_split
             best_r_split = r_split
             best_attribute = i
