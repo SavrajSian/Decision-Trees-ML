@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.random import default_rng
+import matplotlib.pyplot as plt
 
 
 class Node:
@@ -108,9 +109,37 @@ def update_confusion_matrix(confusion_matrix, model, test):
     return confusion_matrix
 
 
+def draw_node(model, ax, props, x, y, depth, deepest):
+    if model.leaf:
+
+        ax.text(x - 1, y + 0.1, str(model.value), fontsize=6,
+                verticalalignment='top', bbox=props)
+
+    else:
+        ax.text(x - 4, y + 0.1, f'{model.attribute} < {model.value}', fontsize=6,
+                verticalalignment='top', bbox=props)
+
+        draw_node(model.left, ax, props, x - (8 * (deepest-depth)), y - 1, depth + 1, deepest)
+        draw_node(model.right, ax, props, x + (8 * (deepest-depth)), y - 1, depth + 1, deepest)
+        plt.plot([x, (x + (8 * deepest-depth)))], [y, (y - 1)])
+        plt.plot([x, (x - (8 * deepest-depth)))], [y, (y - 1)])
+
+
+def tree_depth(node):
+    if node.leaf:
+        return 1
+    else:
+        return max(tree_depth(node.left), tree_depth(node.right)) + 1
+    
 def draw_tree(model):
     # TODO: Draw a tree w/ matplotlib
-    pass
+    _, ax = plt.subplots()
+    props = dict(boxstyle='round', facecolor='wheat', alpha=1)
+    depth = tree_depth(model)
+    print(depth)
+    draw_node(model, ax, props, 0.5, 0.5, 2, depth)
+    plt.yticks([0, 10])
+    plt.show()
 
 
 def calc_recall_precision(confusion_matrix):
@@ -119,14 +148,17 @@ def calc_recall_precision(confusion_matrix):
     recall = []
 
     for i in range(0, 4):
-        precision.append(confusion_matrix[i][i]/np.sum(confusion_matrix[i])) #diagonal element divided by sum along corresponding row
-        recall.append(confusion_matrix[i][i]/np.sum(confusion_matrix, axis=0)[i]) #diagonal element divided by sum along corresponding column
+        precision.append(confusion_matrix[i][i] / np.sum(
+            confusion_matrix[i]))  # diagonal element divided by sum along corresponding row
+        recall.append(confusion_matrix[i][i] / np.sum(confusion_matrix, axis=0)[
+            i])  # diagonal element divided by sum along corresponding column
 
     f1 = []
     for i in range(np.shape(confusion_matrix)[0]):
-        f1 = np.append(f1, 2*precision[i]*recall[i]/(precision[i]+recall[i]))
+        f1 = np.append(f1, 2 * precision[i] * recall[i] / (precision[i] + recall[i]))
 
     return recall, precision, f1
+
 
 def prune(model):
     #  TODO: evaluates and prunes a given model (probably recursive)
@@ -163,17 +195,18 @@ def k_fold_cross_validation(dataset, k):
 
 
 if __name__ == "__main__":
-    print("Clean")
-    data_clean = np.loadtxt("./wifi_db/clean_dataset.txt")
-    k_fold_cross_validation(data_clean, 10)
-
-    print("Noisy")
-    data_noisy = np.loadtxt("./wifi_db/noisy_dataset.txt")
-    k_fold_cross_validation(data_noisy, 10)
-
-    # train_clean, test_clean = split_dataset(data_clean, 0.2)
-    # root_clean, depth_clean = decision_tree_learning(train_clean, 0)
     # print("Clean")
+    data_clean = np.loadtxt("./wifi_db/clean_dataset.txt")
+    # k_fold_cross_validation(data_clean, 10)
+    #
+    # print("Noisy")
+    # data_noisy = np.loadtxt("./wifi_db/noisy_dataset.txt")
+    # k_fold_cross_validation(data_noisy, 10)
+
+    train_clean, test_clean = split_dataset(data_clean, 0.2)
+    root_clean, depth_clean = decision_tree_learning(train_clean, 0)
+    print("Clean")
+    draw_tree(root_clean)
     # evaluate(root_clean, test_clean)
     #
     # data_noisy = np.loadtxt("./wifi_db/noisy_dataset.txt")
