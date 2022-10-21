@@ -109,7 +109,7 @@ def update_confusion_matrix(confusion_matrix, model, test):
     return confusion_matrix
 
 
-def draw_node(model, ax, props, x, y, depth, deepest):
+def draw_node(model, ax, props, x, y, depth_curr, depth):
     if model.leaf:
 
         ax.text(x - 1, y + 0.1, str(model.value), fontsize=6,
@@ -119,10 +119,10 @@ def draw_node(model, ax, props, x, y, depth, deepest):
         ax.text(x - 4, y + 0.1, f'{model.attribute} < {model.value}', fontsize=6,
                 verticalalignment='top', bbox=props)
 
-        draw_node(model.left, ax, props, x - (8 * (deepest-depth)), y - 1, depth + 1, deepest)
-        draw_node(model.right, ax, props, x + (8 * (deepest-depth)), y - 1, depth + 1, deepest)
-        plt.plot([x, (x + (8 * deepest-depth))], [y, (y - 1)])
-        plt.plot([x, (x - (8 * deepest-depth))], [y, (y - 1)])
+        draw_node(model.left, ax, props, x +- (8 * depth)/pow(2, depth_curr), y - 1, depth_curr + 1, depth)
+        draw_node(model.right, ax, props, x + (8 * depth)/pow(2, depth_curr), y - 1, depth_curr + 1, depth)
+        plt.plot([x, x + (8 * depth)/pow(2, depth_curr)], [y, (y - 1)])
+        plt.plot([x, x - (8 * depth)/pow(2, depth_curr)], [y, (y - 1)])
 
 
 def tree_depth(node):
@@ -136,8 +136,7 @@ def draw_tree(model):
     _, ax = plt.subplots()
     props = dict(boxstyle='round', facecolor='wheat', alpha=1)
     depth = tree_depth(model)
-    print(depth)
-    draw_node(model, ax, props, 0.5, 0.5, 2, depth)
+    draw_node(model, ax, props, 0.5, 0.5, 1, depth)
     plt.yticks([0, 10])
     plt.show()
 
