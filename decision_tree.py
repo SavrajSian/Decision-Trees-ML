@@ -121,8 +121,8 @@ def draw_node(model, ax, props, x, y, depth, deepest):
 
         draw_node(model.left, ax, props, x - (8 * (deepest-depth)), y - 1, depth + 1, deepest)
         draw_node(model.right, ax, props, x + (8 * (deepest-depth)), y - 1, depth + 1, deepest)
-        plt.plot([x, (x + (8 * deepest-depth)))], [y, (y - 1)])
-        plt.plot([x, (x - (8 * deepest-depth)))], [y, (y - 1)])
+        plt.plot([x, (x + (8 * deepest-depth))], [y, (y - 1)])
+        plt.plot([x, (x - (8 * deepest-depth))], [y, (y - 1)])
 
 
 def tree_depth(node):
