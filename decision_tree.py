@@ -11,6 +11,8 @@ class Node:
         self.right = right
         self.leaf = leaf
 
+    def __str__(self):
+        return f"Node - Left: [{self.left}] - Right[{self.right}]"
 
 
 def find_split(data):
@@ -97,7 +99,7 @@ def evaluate(model, test_dataset):
         if result == sample[-1]:
             success += 1
     accuracy = 100 * (success / test_dataset.shape[0])
-    print("Accuracy: " + str(accuracy))
+    return accuracy
 
 
 def update_confusion_matrix(confusion_matrix, model, test):
@@ -125,9 +127,53 @@ def calc_recall_precision(confusion_matrix):
     return recall, precision, f1
 
 
-def prune(model):
-    #  TODO: evaluates and prunes a given model (probably recursive)
-    pass
+def prune(model, validation_set, root):
+    #  Save some data for validation set
+    #  After creating model, prune:
+    #  Find node connected to two leaves ->
+    #  Replace node with majority class label ->
+    #  Compare accuracies
+    if model.leaf:
+        return
+    print(model.attribute)
+    print(validation_set[:, model.attribute])
+    l_split = np.where(validation_set[:, model.attribute] < model.value)
+    r_split = np.where(validation_set[:, model.attribute] >= model.value)
+
+    if model.left.leaf and model.right.leaf:
+        accuracy_before = evaluate(root, validation_set)
+        values, counts = np.unique(validation_set[:, -1], return_counts=True)
+        majority = values[list(counts).index(max(counts))]
+        l_old, r_old, a_old = model.left, model.right, model.attribute
+        model.attribute = majority
+        model.left, model.right, model.leaf = None, None, True
+        accuracy_after = evaluate(root, validation_set)
+        if accuracy_after <= accuracy_before:  # Lower accuracy, revert
+            model.left, model.right, model.attribute = l_old, r_old, a_old
+        return
+
+    prune(model.right, r_split, root)
+    prune(model.left, l_split, root)
+
+
+def create_pruned_tree(data):
+    print("Creating pruned tree")
+    data, validation = split_dataset(data, 0.1)
+    train, test = split_dataset(data, 0.1)
+    model, depth = decision_tree_learning(train, 0)
+    print(f"Depth {depth}")
+    print("Model created...")
+    print("Pre-pruned evaluation:")
+    print(evaluate(model, test))
+    pruned_model = model
+    prune(pruned_model, validation, model)
+    while pruned_model != model:
+        print("Pruning...")
+        model = pruned_model
+        prune(pruned_model, validation, model)
+    print("Pruned evaluation:")
+    print(evaluate(pruned_model, test))
+    return pruned_model
 
 
 def k_fold_cross_validation(dataset, k):
@@ -184,6 +230,10 @@ def draw_tree(model, depth):
     plt.show()
 
 
+# TODO: create a tree from the dataset (only clean dataset needed), then draw it
+def visualise_tree(data):
+    tree, depth = decision_tree_learning(data, 0)
+    draw_tree(tree, depth)
 
 
 if __name__ == "__main__":
