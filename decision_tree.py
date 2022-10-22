@@ -12,6 +12,7 @@ class Node:
         self.leaf = leaf
 
 
+
 def find_split(data):
     # Finds the attribute and value with the highest information gain
     # Sort a column -> take two adjacent values mean -> calculate info gain on this mean
@@ -103,58 +104,23 @@ def update_confusion_matrix(confusion_matrix, model, test):
     for sample in test:
         x, y = sample[:-1], int(sample[-1])
         result = fit(model, x)
-        # TODO: Ensure this is indexed the correct way (matt is unsure)
-        # TODO: x-axis should be determined labels, y-axis actual labels
-        confusion_matrix[(result - 1, y - 1)] += 1
+        # x-axis predicted labels, y-axis actual labels
+        confusion_matrix[(y - 1, result - 1)] += 1
     return confusion_matrix
 
 
-def draw_node(model, ax, props, x, y, depth_curr, depth):
-    if model.leaf:
-
-        ax.text(x - 1, y + 0.1, str(model.value), fontsize=6,
-                verticalalignment='top', bbox=props)
-
-    else:
-        ax.text(x - 4, y + 0.1, f'{model.attribute} < {model.value}', fontsize=6,
-                verticalalignment='top', bbox=props)
-
-        draw_node(model.left, ax, props, x +- (8 * depth)/pow(2, depth_curr), y - 1, depth_curr + 1, depth)
-        draw_node(model.right, ax, props, x + (8 * depth)/pow(2, depth_curr), y - 1, depth_curr + 1, depth)
-        plt.plot([x, x + (8 * depth)/pow(2, depth_curr)], [y, (y - 1)])
-        plt.plot([x, x - (8 * depth)/pow(2, depth_curr)], [y, (y - 1)])
-
-
-def tree_depth(node):
-    if node.leaf:
-        return 1
-    else:
-        return max(tree_depth(node.left), tree_depth(node.right)) + 1
-    
-def draw_tree(model):
-    # TODO: Draw a tree w/ matplotlib
-    _, ax = plt.subplots()
-    props = dict(boxstyle='round', facecolor='wheat', alpha=1)
-    depth = tree_depth(model)
-    draw_node(model, ax, props, 0.5, 0.5, 1, depth)
-    plt.yticks([0, 10])
-    plt.show()
-
-
 def calc_recall_precision(confusion_matrix):
-    # Calculate recall and precision rates and f1 measures per class
+    # Calculate recall and precision rates and f1 measures per class (as percentages)
     precision = []
     recall = []
-
-    for i in range(0, 4):
-        precision.append(confusion_matrix[i][i] / np.sum(
-            confusion_matrix[i]))  # diagonal element divided by sum along corresponding row
-        recall.append(confusion_matrix[i][i] / np.sum(confusion_matrix, axis=0)[
-            i])  # diagonal element divided by sum along corresponding column
-
     f1 = []
-    for i in range(np.shape(confusion_matrix)[0]):
-        f1 = np.append(f1, 2 * precision[i] * recall[i] / (precision[i] + recall[i]))
+
+    for i in range(4):
+        tp = confusion_matrix[i][i]
+        tp_scaled = 100 * tp  # for percentages
+        precision.append(tp_scaled / np.sum(confusion_matrix[:, i], axis=0))
+        recall.append(tp_scaled / np.sum(confusion_matrix[i]))
+        f1.append(2 * precision[i] * recall[i] / (precision[i] + recall[i]))
 
     return recall, precision, f1
 
@@ -186,26 +152,57 @@ def k_fold_cross_validation(dataset, k):
         confusion_matrix = update_confusion_matrix(confusion_matrix, model, test)
 
     accuracy = np.diag(confusion_matrix).sum() / confusion_matrix.sum()
-    print(confusion_matrix)
-    print("Accuracy " + str(100 * accuracy))
-    print(np.sum(confusion_matrix))
     recall, precision, f1 = calc_recall_precision(confusion_matrix)
-    print("Recall = ", recall, "Precision = ", precision, "F1 score = ", f1)
+    # print(confusion_matrix)
+    # print(np.sum(confusion_matrix))
+    print("Accuracy: " + str(100 * accuracy))
+    print("Recall: " + str(recall))
+    print("Precision: " + str(precision))
+    print("F1 score: " + str(f1))
+
+
+def draw_node(model, ax, props, x, y, depth_curr, depth):
+    if model.leaf:
+        ax.text(x - 1, y + 0.1, f'Leaf: {str(int(model.value))}', fontsize=6,
+                verticalalignment='top', bbox=props)
+    else:
+        ax.text(x - 4, y + 0.1, f'X{model.attribute} < {model.value}', fontsize=6,
+                verticalalignment='top', bbox=props)
+
+        draw_node(model.left, ax, props, x - (8 * depth) / pow(2, depth_curr), y - 1, depth_curr + 1, depth)
+        draw_node(model.right, ax, props, x + (8 * depth) / pow(2, depth_curr), y - 1, depth_curr + 1, depth)
+        plt.plot([x, x + (8 * depth) / pow(2, depth_curr)], [y, (y - 1)])
+        plt.plot([x, x - (8 * depth) / pow(2, depth_curr)], [y, (y - 1)])
+
+
+def draw_tree(model, depth):
+    # TODO: Draw a tree w/ matplotlib
+    _, ax = plt.subplots()
+    props = dict(boxstyle='round', facecolor='wheat', alpha=1)
+    draw_node(model, ax, props, 0.5, 0.5, 1, depth)
+    plt.yticks([0, 10])
+    plt.show()
+
+
 
 
 if __name__ == "__main__":
-    # print("Clean")
-    data_clean = np.loadtxt("./wifi_db/clean_dataset.txt")
+    print("Clean")
+    data_clean = np.loadtxt("./wifi_db/noisy_dataset.txt")
+    # create_pruned_tree(data_clean)
+
+    visualise_tree(data_clean)
     # k_fold_cross_validation(data_clean, 10)
-    #
+    # print()
     # print("Noisy")
     # data_noisy = np.loadtxt("./wifi_db/noisy_dataset.txt")
     # k_fold_cross_validation(data_noisy, 10)
 
-    train_clean, test_clean = split_dataset(data_clean, 0.2)
-    root_clean, depth_clean = decision_tree_learning(train_clean, 0)
-    print("Clean")
-    draw_tree(root_clean)
+    # train_clean, test_clean = split_dataset(data_clean, 0.2)
+    # root_clean, depth_clean = decision_tree_learning(train_clean, 0)
+    # print("Clean")
+    # draw_tree(root_clean, depth_clean)
+
     # evaluate(root_clean, test_clean)
     #
     # data_noisy = np.loadtxt("./wifi_db/noisy_dataset.txt")
