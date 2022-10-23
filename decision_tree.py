@@ -156,27 +156,22 @@ def prune(model, validation_set, root):
     prune(model.left, l_split, root)
 
 
-def create_pruned_tree(data):
+def pruned_tree_learning(data):
     print("Creating pruned tree")
-    data, validation = split_dataset(data, 0.1)
-    train, test = split_dataset(data, 0.1)
+    train, validation = split_dataset(data, 0.1)
     model, depth = decision_tree_learning(train, 0)
     print(f"Depth {depth}")
     print("Model created...")
-    print("Pre-pruned evaluation:")
-    print(evaluate(model, test))
     pruned_model = model
     prune(pruned_model, validation, model)
     while pruned_model != model:
         print("Pruning...")
         model = pruned_model
         prune(pruned_model, validation, model)
-    print("Pruned evaluation:")
-    print(evaluate(pruned_model, test))
     return pruned_model
 
 
-def k_fold_cross_validation(dataset, k):
+def k_fold_cross_validation(dataset, k, pruning=False):
     # Split data k equal ways
     # Repeat k times:
     #   Take a subset of data to test
@@ -193,7 +188,11 @@ def k_fold_cross_validation(dataset, k):
 
     for i in range(k):
         test = data_buckets.pop(0)  # Remove from front
-        model, _ = decision_tree_learning(np.concatenate(data_buckets), 0)  # Train on remaining
+        train = np.concatenate(data_buckets)
+        if pruning:
+            model = pruned_tree_learning(train)
+        else:
+            model, _ = decision_tree_learning(train, 0)  # Train on remaining
         data_buckets.append(test)  # Add back to end
         confusion_matrix = update_confusion_matrix(confusion_matrix, model, test)
 
@@ -222,7 +221,6 @@ def draw_node(model, ax, props, x, y, depth_curr, depth):
 
 
 def draw_tree(model, depth):
-    # TODO: Draw a tree w/ matplotlib
     _, ax = plt.subplots()
     props = dict(boxstyle='round', facecolor='wheat', alpha=1)
     draw_node(model, ax, props, 0.5, 0.5, 1, depth)
@@ -230,33 +228,26 @@ def draw_tree(model, depth):
     plt.show()
 
 
-# TODO: create a tree from the dataset (only clean dataset needed), then draw it
 def visualise_tree(data):
     tree, depth = decision_tree_learning(data, 0)
     draw_tree(tree, depth)
 
 
 if __name__ == "__main__":
-    print("Clean")
     data_clean = np.loadtxt("./wifi_db/noisy_dataset.txt")
-    # create_pruned_tree(data_clean)
+    data_noisy = np.loadtxt("./wifi_db/noisy_dataset.txt")
 
+    print("Drawing tree")
     visualise_tree(data_clean)
-    # k_fold_cross_validation(data_clean, 10)
-    # print()
-    # print("Noisy")
-    # data_noisy = np.loadtxt("./wifi_db/noisy_dataset.txt")
-    # k_fold_cross_validation(data_noisy, 10)
 
-    # train_clean, test_clean = split_dataset(data_clean, 0.2)
-    # root_clean, depth_clean = decision_tree_learning(train_clean, 0)
-    # print("Clean")
-    # draw_tree(root_clean, depth_clean)
+    print("Clean")
+    k_fold_cross_validation(data_clean, 10)
 
-    # evaluate(root_clean, test_clean)
-    #
-    # data_noisy = np.loadtxt("./wifi_db/noisy_dataset.txt")
-    # train_noisy, test_noisy = split_dataset(data_noisy, 0.2)
-    # root_noisy, depth_noisy = decision_tree_learning(train_noisy, 0)
-    # print("Noisy")
-    # evaluate(root_noisy, test_noisy)
+    print("Noisy")
+    k_fold_cross_validation(data_noisy, 10)
+
+    print("Clean w/ pruning")
+    k_fold_cross_validation(data_clean, 10, pruning=True)
+
+    print("Noisy w/ pruning")
+    k_fold_cross_validation(data_noisy, 10, pruning=True)
