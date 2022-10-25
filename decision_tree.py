@@ -12,23 +12,23 @@ class Node:
         self.leaf = leaf
 
     def __str__(self):
-        return f"Node - Left: [{self.left}] - Right[{self.right}]"
+        return f"Node: Left[{self.left}] - Right[{self.right}]"
 
 
-def find_split(data):
+def find_split(dataset):
     # Finds the attribute and value with the highest information gain
     # Sort a column -> take two adjacent values mean -> calculate info gain on this mean
     max_gain = 0
     best_attribute, best_value = 0, 0
     best_l_split, best_r_split = [[]], [[]]
     attr = 0
-    h_all = entropy(data)
-    for col in data[:, :-1].T:
+    h_all = entropy(dataset)
+    for col in dataset[:, :-1].T:
         sorted_col = np.sort(col)
         for i in range(sorted_col.size - 1):
             mp = (sorted_col[i] + sorted_col[i + 1]) / 2  # Mean of adjacent values
-            l_split = data[col < mp]  # Data to left of midpoint
-            r_split = data[col >= mp]  # Data to right of midpoint
+            l_split = dataset[col < mp]  # dataset to left of midpoint
+            r_split = dataset[col >= mp]  # dataset to right of midpoint
             curr_gain = info_gain(h_all, l_split, r_split)
 
             if curr_gain > max_gain:
@@ -61,20 +61,6 @@ def entropy(dataset):
     return hs.sum()
 
 
-def decision_tree_learning(training_dataset, depth):
-    y = training_dataset[:, -1]
-
-    if np.min(y) == np.max(y):  # All samples have same categorical value
-        return Node(value=y[0], leaf=True), depth
-
-    attr, val, l_dataset, r_dataset = find_split(training_dataset)
-    l_branch, l_depth = decision_tree_learning(l_dataset, depth + 1)
-    r_branch, r_depth = decision_tree_learning(r_dataset, depth + 1)
-    node = Node(attribute=attr, value=val, left=l_branch, right=r_branch)
-
-    return node, max(l_depth, r_depth)
-
-
 def fit(model, sample):
     if model.leaf:
         return int(model.value)
@@ -94,11 +80,14 @@ def split_dataset(x, test_proportion, random_generator=default_rng()):
 
 def evaluate(model, test_dataset):
     success = 0
+    total = 0
     for sample in test_dataset:
-        result = fit(model, sample[:-1])
-        if result == sample[-1]:
+        x, y = sample[:-1], int(sample[-1])
+        result = fit(model, x)
+        total += 1
+        if result == y:
             success += 1
-    accuracy = 100 * (success / test_dataset.shape[0])
+    accuracy = 100 * (success / total)
     return accuracy
 
 
@@ -111,66 +100,119 @@ def update_confusion_matrix(confusion_matrix, model, test):
     return confusion_matrix
 
 
-def calc_recall_precision(confusion_matrix):
+def calc_recall_precision(confusion_matrix, num_classes):
     # Calculate recall and precision rates and f1 measures per class (as percentages)
     precision = []
     recall = []
     f1 = []
 
-    for i in range(4):
+    for i in range(num_classes):
         tp = confusion_matrix[i][i]
         tp_scaled = 100 * tp  # for percentages
-        precision.append(tp_scaled / np.sum(confusion_matrix[:, i], axis=0))
-        recall.append(tp_scaled / np.sum(confusion_matrix[i]))
-        f1.append(2 * precision[i] * recall[i] / (precision[i] + recall[i]))
+        pr = tp_scaled / np.sum(confusion_matrix[:, i], axis=0)
+        re = tp_scaled / np.sum(confusion_matrix[i])
+        precision.append(pr)
+        recall.append(re)
+        f1.append(2 * pr * re / (pr + re))
 
     return recall, precision, f1
 
 
-def prune(model, validation_set, root):
-    #  Save some data for validation set
-    #  After creating model, prune:
-    #  Find node connected to two leaves ->
-    #  Replace node with majority class label ->
-    #  Compare accuracies
-    if model.leaf:
-        return
-    print(model.attribute)
-    print(validation_set[:, model.attribute])
-    l_split = np.where(validation_set[:, model.attribute] < model.value)
-    r_split = np.where(validation_set[:, model.attribute] >= model.value)
+def decision_tree_learning(training_dataset, depth):
+    y = training_dataset[:, -1]
 
-    if model.left.leaf and model.right.leaf:
-        accuracy_before = evaluate(root, validation_set)
-        values, counts = np.unique(validation_set[:, -1], return_counts=True)
-        majority = values[list(counts).index(max(counts))]
-        l_old, r_old, a_old = model.left, model.right, model.attribute
-        model.attribute = majority
-        model.left, model.right, model.leaf = None, None, True
-        accuracy_after = evaluate(root, validation_set)
-        if accuracy_after <= accuracy_before:  # Lower accuracy, revert
-            model.left, model.right, model.attribute = l_old, r_old, a_old
-        return
+    if np.min(y) == np.max(y):  # All samples have same categorical value
+        return Node(value=y[0], leaf=True), depth
 
-    prune(model.right, r_split, root)
-    prune(model.left, l_split, root)
+    attr, val, l_dataset, r_dataset = find_split(training_dataset)
+    l_branch, l_depth = decision_tree_learning(l_dataset, depth + 1)
+    r_branch, r_depth = decision_tree_learning(r_dataset, depth + 1)
+    node = Node(attribute=attr, value=val, left=l_branch, right=r_branch)
+
+    return node, max(l_depth, r_depth)
 
 
-def pruned_tree_learning(data):
+# def prune2(model, validation_set, root, training_dataset):
+#     #  Save some data for validation set
+#     #  After creating model, prune:
+#     #  Find node connected to two leaves ->
+#     #  Replace node with majority class label ->
+#     #  Compare accuracies
+#     if model.leaf:
+#         return
+#
+#     # print(model.attribute)
+#     # print(validation_set[:, model.attribute])
+#     # l_split = np.where(validation_set[:, model.attribute] < model.value)
+#     # r_split = np.where(validation_set[:, model.attribute] >= model.value)
+#
+#     # l_split = validation_set[validation_set[:, model.attribute] < model.value]
+#     # r_split = validation_set[validation_set[:, model.attribute] >= model.value]
+#
+#     # train_l = np.where(training_dataset[:, model.attribute] < model.value)
+#     # train_r = np.where(training_dataset[:, model.attribute] >= model.value)
+#     train_l = training_dataset[training_dataset[:, model.attribute] < model.value]
+#     train_r = training_dataset[training_dataset[:, model.attribute] >= model.value]
+#
+#     rooms, count = np.unique(training_dataset[:, -1], return_counts=True)
+#     most_likely_room = rooms[np.argmax(count)]
+#     if model.left.leaf and model.right.leaf:
+#         accuracy_before = evaluate(root, validation_set)
+#         # values, counts = np.unique(validation_set[:, -1], return_counts=True)
+#         # majority = values[list(counts).index(max(counts))]
+#         l_old, r_old, a_old = model.left, model.right, model.attribute
+#         model.value = most_likely_room
+#         model.left, model.right, model.leaf = None, None, True
+#         accuracy_after = evaluate(root, validation_set)
+#         # print("acc before", accuracy_before, "acc after", accuracy_after)
+#         if accuracy_after < accuracy_before:  # Lower accuracy, revert
+#             model.left, model.right, model.attribute = l_old, r_old, a_old
+#             model.leaf = False
+#         return
+#
+#     prune2(model.right, validation_set, root, train_r)
+#     prune2(model.left, validation_set, root, train_l)
+
+
+def prune(curr_node, train, validation):
+    if curr_node.leaf:
+        return curr_node
+
+    node = curr_node
+    attr, val = node.attribute, node.value
+
+    train_left = train[train[:, attr] < val]
+    train_right = train[train[:, attr] >= val]
+
+    node.left = prune(node.left, train_left, validation)
+    node.right = prune(node.right, train_right, validation)
+
+    if not node.left.leaf or not node.right.leaf:
+        return node
+
+    rooms, counts = np.unique(train[:, -1], return_counts=True)
+    majority = rooms[np.argmax(counts)]
+
+    new_node = Node(value=majority, leaf=True)
+
+    acc_before = evaluate(node, validation)
+    acc_after = evaluate(new_node, validation)
+
+    if acc_before > acc_after:
+        return node
+
+    return new_node
+
+
+def pruned_tree_learning(train, validation):
     print("Creating pruned tree")
-    train, validation = split_dataset(data, 0.1)
     model, depth = decision_tree_learning(train, 0)
     print(f"Depth {depth}")
-    print("Model created...")
-    pruned_model = model
-    prune(pruned_model, validation, model)
-    while pruned_model != model:
-        print("Pruning...")
-        model = pruned_model
-        prune(pruned_model, validation, model)
+    pruned_model = prune(model, train, validation)
     return pruned_model
 
 
+# TODO: Nested cross validation when pruning=True
 def k_fold_cross_validation(dataset, k, pruning=False):
     # Split data k equal ways
     # Repeat k times:
@@ -179,12 +221,16 @@ def k_fold_cross_validation(dataset, k, pruning=False):
     #   Evaluate
     shuffled_indices = default_rng().permutation(len(dataset))
     data_buckets = []
-    interval = dataset.shape[0] // k
+    samples = dataset.shape[0]
+    interval = samples // k
 
-    for i in range(0, dataset.shape[0] + 1, interval):
+    for i in range(0, samples + 1, interval):
         data_buckets.append(dataset[shuffled_indices[i:i + interval]])
 
-    confusion_matrix = np.zeros(shape=(4, 4), dtype=int)
+    labels = np.unique(dataset[:, -1])
+    num_classes = len(labels)
+
+    confusion_matrix = np.zeros(shape=(num_classes, num_classes), dtype=int)
 
     for i in range(k):
         test = data_buckets.pop(0)  # Remove from front
@@ -192,15 +238,15 @@ def k_fold_cross_validation(dataset, k, pruning=False):
         if pruning:
             model = pruned_tree_learning(train)
         else:
-            model, _ = decision_tree_learning(train, 0)  # Train on remaining
+            model, _ = decision_tree_learning(train, 0)
         data_buckets.append(test)  # Add back to end
         confusion_matrix = update_confusion_matrix(confusion_matrix, model, test)
+        print(confusion_matrix)
 
-    accuracy = np.diag(confusion_matrix).sum() / confusion_matrix.sum()
-    recall, precision, f1 = calc_recall_precision(confusion_matrix)
-    # print(confusion_matrix)
-    # print(np.sum(confusion_matrix))
-    print("Accuracy: " + str(100 * accuracy))
+    accuracy = 100 * (np.diag(confusion_matrix).sum() / confusion_matrix.sum())
+    recall, precision, f1 = calc_recall_precision(confusion_matrix, num_classes)
+
+    print("Accuracy: " + str(accuracy))
     print("Recall: " + str(recall))
     print("Precision: " + str(precision))
     print("F1 score: " + str(f1))
@@ -228,17 +274,17 @@ def draw_tree(model, depth):
     plt.show()
 
 
-def visualise_tree(data):
-    tree, depth = decision_tree_learning(data, 0)
+def visualise_tree(dataset):
+    tree, depth = decision_tree_learning(dataset, 0)
     draw_tree(tree, depth)
 
 
 if __name__ == "__main__":
-    data_clean = np.loadtxt("./wifi_db/noisy_dataset.txt")
+    data_clean = np.loadtxt("./wifi_db/clean_dataset.txt")
     data_noisy = np.loadtxt("./wifi_db/noisy_dataset.txt")
 
-    print("Drawing tree")
-    visualise_tree(data_clean)
+    # print("Drawing tree")
+    # visualise_tree(data_clean)
 
     print("Clean")
     k_fold_cross_validation(data_clean, 10)
