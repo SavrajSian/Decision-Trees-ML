@@ -78,12 +78,18 @@ def split_dataset(x, test_proportion, random_generator=default_rng()):
     return x_train, x_test
 
 
-def evaluate(model, test_dataset):
+def tree_depth(node):
+    if node.leaf:
+        return 0
+    return 1 + max(tree_depth(node.left), tree_depth(node.right))
+
+
+def evaluate(test_db, trained_tree):
     success = 0
     total = 0
-    for sample in test_dataset:
+    for sample in test_db:
         x, y = sample[:-1], int(sample[-1])
-        result = fit(model, x)
+        result = fit(trained_tree, x)
         total += 1
         if result == y:
             success += 1
@@ -100,7 +106,7 @@ def update_confusion_matrix(confusion_matrix, model, test):
     return confusion_matrix
 
 
-def calc_recall_precision(confusion_matrix, num_classes):
+def calc_recall_precision_f1(confusion_matrix, num_classes):
     # Calculate recall and precision rates and f1 measures per class (as percentages)
     precision = []
     recall = []
@@ -109,11 +115,11 @@ def calc_recall_precision(confusion_matrix, num_classes):
     for i in range(num_classes):
         tp = confusion_matrix[i][i]
         tp_scaled = 100 * tp  # for percentages
-        pr = tp_scaled / np.sum(confusion_matrix[:, i], axis=0)
-        re = tp_scaled / np.sum(confusion_matrix[i])
+        pr = round(tp_scaled / np.sum(confusion_matrix[:, i], axis=0), 2)
+        re = round(tp_scaled / np.sum(confusion_matrix[i]), 2)
         precision.append(pr)
         recall.append(re)
-        f1.append(2 * pr * re / (pr + re))
+        f1.append(round(2 * pr * re / (pr + re), 2))
 
     return recall, precision, f1
 
@@ -130,48 +136,6 @@ def decision_tree_learning(training_dataset, depth):
     node = Node(attribute=attr, value=val, left=l_branch, right=r_branch)
 
     return node, max(l_depth, r_depth)
-
-
-# def prune2(model, validation_set, root, training_dataset):
-#     #  Save some data for validation set
-#     #  After creating model, prune:
-#     #  Find node connected to two leaves ->
-#     #  Replace node with majority class label ->
-#     #  Compare accuracies
-#     if model.leaf:
-#         return
-#
-#     # print(model.attribute)
-#     # print(validation_set[:, model.attribute])
-#     # l_split = np.where(validation_set[:, model.attribute] < model.value)
-#     # r_split = np.where(validation_set[:, model.attribute] >= model.value)
-#
-#     # l_split = validation_set[validation_set[:, model.attribute] < model.value]
-#     # r_split = validation_set[validation_set[:, model.attribute] >= model.value]
-#
-#     # train_l = np.where(training_dataset[:, model.attribute] < model.value)
-#     # train_r = np.where(training_dataset[:, model.attribute] >= model.value)
-#     train_l = training_dataset[training_dataset[:, model.attribute] < model.value]
-#     train_r = training_dataset[training_dataset[:, model.attribute] >= model.value]
-#
-#     rooms, count = np.unique(training_dataset[:, -1], return_counts=True)
-#     most_likely_room = rooms[np.argmax(count)]
-#     if model.left.leaf and model.right.leaf:
-#         accuracy_before = evaluate(root, validation_set)
-#         # values, counts = np.unique(validation_set[:, -1], return_counts=True)
-#         # majority = values[list(counts).index(max(counts))]
-#         l_old, r_old, a_old = model.left, model.right, model.attribute
-#         model.value = most_likely_room
-#         model.left, model.right, model.leaf = None, None, True
-#         accuracy_after = evaluate(root, validation_set)
-#         # print("acc before", accuracy_before, "acc after", accuracy_after)
-#         if accuracy_after < accuracy_before:  # Lower accuracy, revert
-#             model.left, model.right, model.attribute = l_old, r_old, a_old
-#             model.leaf = False
-#         return
-#
-#     prune2(model.right, validation_set, root, train_r)
-#     prune2(model.left, validation_set, root, train_l)
 
 
 def prune(curr_node, train, validation):
@@ -195,8 +159,8 @@ def prune(curr_node, train, validation):
 
     new_node = Node(value=majority, leaf=True)
 
-    acc_before = evaluate(node, validation)
-    acc_after = evaluate(new_node, validation)
+    acc_before = evaluate(validation, node)
+    acc_after = evaluate(validation, new_node)
 
     if acc_before > acc_after:
         return node
@@ -204,15 +168,26 @@ def prune(curr_node, train, validation):
     return new_node
 
 
-def pruned_tree_learning(train, validation):
-    print("Creating pruned tree")
+def pruned_tree_learning(dataset):
+    train, validation = split_dataset(dataset, 0.1)
     model, depth = decision_tree_learning(train, 0)
-    print(f"Depth {depth}")
     pruned_model = prune(model, train, validation)
+    while pruned_model != model:
+        model = pruned_model
+        pruned_model = prune(model, train, validation)
     return pruned_model
 
 
-# TODO: Nested cross validation when pruning=True
+def print_metrics(confusion_matrix):
+    accuracy = 100 * (np.diag(confusion_matrix).sum() / confusion_matrix.sum())
+    recall, precision, f1 = calc_recall_precision_f1(confusion_matrix, num_classes)
+
+    print("Accuracy: " + str(round(accuracy, 2)))
+    print("Recall: " + str(recall))
+    print("Precision: " + str(precision))
+    print("F1 score: " + str(f1))
+
+
 def k_fold_cross_validation(dataset, k, pruning=False):
     # Split data k equal ways
     # Repeat k times:
@@ -224,32 +199,63 @@ def k_fold_cross_validation(dataset, k, pruning=False):
     samples = dataset.shape[0]
     interval = samples // k
 
-    for i in range(0, samples + 1, interval):
-        data_buckets.append(dataset[shuffled_indices[i:i + interval]])
-
-    labels = np.unique(dataset[:, -1])
-    num_classes = len(labels)
+    sum_depths = 0
+    optimal_acc = 0
+    optimal_model = Node()
 
     confusion_matrix = np.zeros(shape=(num_classes, num_classes), dtype=int)
+
+    for i in range(0, samples + 1, interval):
+        data_buckets.append(dataset[shuffled_indices[i:i + interval]])
 
     for i in range(k):
         test = data_buckets.pop(0)  # Remove from front
         train = np.concatenate(data_buckets)
-        if pruning:
+        if pruning:  # If pruning, we are performing nested k-fold, otherwise regular
             model = pruned_tree_learning(train)
+            depth = tree_depth(model)
         else:
-            model, _ = decision_tree_learning(train, 0)
+            model, depth = decision_tree_learning(train, 0)
+        sum_depths += depth
         data_buckets.append(test)  # Add back to end
         confusion_matrix = update_confusion_matrix(confusion_matrix, model, test)
-        print(confusion_matrix)
 
-    accuracy = 100 * (np.diag(confusion_matrix).sum() / confusion_matrix.sum())
-    recall, precision, f1 = calc_recall_precision(confusion_matrix, num_classes)
+        accuracy = evaluate(test, model)
+        if accuracy > optimal_acc:
+            optimal_acc = accuracy
+            optimal_model = model
 
-    print("Accuracy: " + str(accuracy))
-    print("Recall: " + str(recall))
-    print("Precision: " + str(precision))
-    print("F1 score: " + str(f1))
+    avg_depth = sum_depths / k
+    return confusion_matrix, optimal_model, avg_depth
+
+
+def nested_k_fold_cross_validation(dataset, k):
+    shuffled_indices = default_rng().permutation(len(dataset))
+    data_buckets = []
+    samples = dataset.shape[0]
+
+    sum_depths = 0
+
+    # i.e. 10-fold with 200 samples will make buckets of 20
+    interval = samples // k
+
+    confusion_matrix = np.zeros(shape=(num_classes, num_classes), dtype=int)
+
+    # Make of list of k buckets
+    for i in range(0, samples + 1, interval):
+        data_buckets.append(dataset[shuffled_indices[i:i + interval]])
+
+    for i in range(k):
+        test = data_buckets.pop(0)
+        train_validation = np.concatenate(data_buckets)
+        _, model, depth = k_fold_cross_validation(train_validation, k - 1, pruning=True)
+        sum_depths += depth
+
+        data_buckets.append(test)
+        confusion_matrix = update_confusion_matrix(confusion_matrix, model, test)
+
+    avg_depth = sum_depths / k
+    return confusion_matrix, avg_depth
 
 
 def draw_node(model, ax, props, x, y, depth_curr, depth):
@@ -283,17 +289,28 @@ if __name__ == "__main__":
     data_clean = np.loadtxt("./wifi_db/clean_dataset.txt")
     data_noisy = np.loadtxt("./wifi_db/noisy_dataset.txt")
 
+    labels = np.unique(data_clean[:, -1])
+    num_classes = len(labels)
+
     # print("Drawing tree")
     # visualise_tree(data_clean)
 
-    print("Clean")
-    k_fold_cross_validation(data_clean, 10)
+    print("Clean\n")
+    conf_matrix, _, average_depth = k_fold_cross_validation(data_clean, 10)
+    print_metrics(conf_matrix)
+    print(f"Average tree depth: {average_depth}")
 
-    print("Noisy")
-    k_fold_cross_validation(data_noisy, 10)
+    print("\nNoisy\n")
+    conf_matrix, _, average_depth = k_fold_cross_validation(data_noisy, 10)
+    print_metrics(conf_matrix)
+    print(f"Average tree depth: {average_depth}")
 
-    print("Clean w/ pruning")
-    k_fold_cross_validation(data_clean, 10, pruning=True)
+    print("\nClean w/ pruning\n")
+    conf_matrix, average_depth = nested_k_fold_cross_validation(data_clean, 10)
+    print_metrics(conf_matrix)
+    print(f"Average tree depth: {average_depth}")
 
-    print("Noisy w/ pruning")
-    k_fold_cross_validation(data_noisy, 10, pruning=True)
+    print("\nNoisy w/ pruning\n")
+    conf_matrix, average_depth = nested_k_fold_cross_validation(data_noisy, 10)
+    print_metrics(conf_matrix)
+    print(f"Average tree depth: {average_depth}")
