@@ -106,7 +106,7 @@ def update_confusion_matrix(confusion_matrix, model, test):
     return confusion_matrix
 
 
-def calc_recall_precision_f1(confusion_matrix, num_classes):
+def calc_recall_precision_f1(confusion_matrix):
     # Calculate recall and precision rates and f1 measures per class (as percentages)
     precision = []
     recall = []
@@ -170,7 +170,7 @@ def prune(curr_node, train, validation):
 
 def pruned_tree_learning(dataset):
     train, validation = split_dataset(dataset, 0.1)
-    model, depth = decision_tree_learning(train, 0)
+    model, _ = decision_tree_learning(train, 0)
     pruned_model = prune(model, train, validation)
     while pruned_model != model:
         model = pruned_model
@@ -180,7 +180,7 @@ def pruned_tree_learning(dataset):
 
 def print_metrics(confusion_matrix):
     accuracy = 100 * (np.diag(confusion_matrix).sum() / confusion_matrix.sum())
-    recall, precision, f1 = calc_recall_precision_f1(confusion_matrix, num_classes)
+    recall, precision, f1 = calc_recall_precision_f1(confusion_matrix)
 
     print("Accuracy: " + str(round(accuracy, 2)))
     print("Recall: " + str(recall))
@@ -292,8 +292,8 @@ if __name__ == "__main__":
     labels = np.unique(data_clean[:, -1])
     num_classes = len(labels)
 
-    # print("Drawing tree")
-    # visualise_tree(data_clean)
+    print("Drawing tree")
+    visualise_tree(data_clean)
 
     print("Clean\n")
     conf_matrix, _, average_depth = k_fold_cross_validation(data_clean, 10)

@@ -1,3 +1,4 @@
-# Explanation of how to run code on lab machines
+# To run the code on lab machines, execute the following commands in order:
 
-Ubuntu: python3 decision_tree.py ?
+source /vol/lab/intro2ml/venv/bin/activate
+python3 decision_tree.py
