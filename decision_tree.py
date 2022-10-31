@@ -168,8 +168,7 @@ def prune(curr_node, train, validation):
     return new_node
 
 
-def pruned_tree_learning(dataset):
-    train, validation = split_dataset(dataset, 0.1)
+def pruned_tree_learning(train, validation):
     model, _ = decision_tree_learning(train, 0)
     pruned_model = prune(model, train, validation)
     while pruned_model != model:
@@ -182,13 +181,15 @@ def print_metrics(confusion_matrix):
     accuracy = 100 * (np.diag(confusion_matrix).sum() / confusion_matrix.sum())
     recall, precision, f1 = calc_recall_precision_f1(confusion_matrix)
 
+    print("Confusion Matrix:")
+    print(confusion_matrix.round(2))
     print("Accuracy: " + str(round(accuracy, 2)))
     print("Recall: " + str(recall))
     print("Precision: " + str(precision))
     print("F1 score: " + str(f1))
 
 
-def k_fold_cross_validation(dataset, k, pruning=False):
+def k_fold_cross_validation(dataset, k):
     # Split data k equal ways
     # Repeat k times:
     #   Take a subset of data to test
@@ -196,12 +197,11 @@ def k_fold_cross_validation(dataset, k, pruning=False):
     #   Evaluate
     shuffled_indices = default_rng().permutation(len(dataset))
     data_buckets = []
-    samples = dataset.shape[0]
-    interval = samples // k
-
     sum_depths = 0
-    optimal_acc = 0
-    optimal_model = Node()
+    samples = dataset.shape[0]
+
+    # i.e. 10-fold with 200 samples will make buckets of 20
+    interval = samples // k
 
     confusion_matrix = np.zeros(shape=(num_classes, num_classes), dtype=int)
 
@@ -211,35 +211,26 @@ def k_fold_cross_validation(dataset, k, pruning=False):
     for i in range(k):
         test = data_buckets.pop(0)  # Remove from front
         train = np.concatenate(data_buckets)
-        if pruning:  # If pruning, we are performing nested k-fold, otherwise regular
-            model = pruned_tree_learning(train)
-            depth = tree_depth(model)
-        else:
-            model, depth = decision_tree_learning(train, 0)
+        model, depth = decision_tree_learning(train, 0)
+
         sum_depths += depth
         data_buckets.append(test)  # Add back to end
         confusion_matrix = update_confusion_matrix(confusion_matrix, model, test)
 
-        accuracy = evaluate(test, model)
-        if accuracy > optimal_acc:
-            optimal_acc = accuracy
-            optimal_model = model
-
+    avg_confusion_matrix = confusion_matrix / k
     avg_depth = sum_depths / k
-    return confusion_matrix, optimal_model, avg_depth
+    return avg_confusion_matrix, avg_depth
 
 
 def nested_k_fold_cross_validation(dataset, k):
     shuffled_indices = default_rng().permutation(len(dataset))
     data_buckets = []
+    sum_depths = 0
     samples = dataset.shape[0]
 
-    sum_depths = 0
-
-    # i.e. 10-fold with 200 samples will make buckets of 20
     interval = samples // k
 
-    confusion_matrix = np.zeros(shape=(num_classes, num_classes), dtype=int)
+    confusion_matrix = np.zeros(shape=(num_classes, num_classes), dtype=float)
 
     # Make of list of k buckets
     for i in range(0, samples + 1, interval):
@@ -247,15 +238,22 @@ def nested_k_fold_cross_validation(dataset, k):
 
     for i in range(k):
         test = data_buckets.pop(0)
-        train_validation = np.concatenate(data_buckets)
-        _, model, depth = k_fold_cross_validation(train_validation, k - 1, pruning=True)
-        sum_depths += depth
+        for j in range(k - 1):
+            validation = data_buckets.pop(0)
+            train = np.concatenate(data_buckets)
+            model = pruned_tree_learning(train, validation)
+            depth = tree_depth(model)
+
+            sum_depths += depth
+            data_buckets.append(validation)
+            confusion_matrix = update_confusion_matrix(confusion_matrix, model, test)
 
         data_buckets.append(test)
-        confusion_matrix = update_confusion_matrix(confusion_matrix, model, test)
 
+    iterations = k * (k - 1)
+    avg_confusion_matrix = confusion_matrix / iterations
     avg_depth = sum_depths / k
-    return confusion_matrix, avg_depth
+    return avg_confusion_matrix, avg_depth
 
 
 def draw_node(model, ax, props, x, y, depth_curr, depth):
@@ -296,12 +294,12 @@ if __name__ == "__main__":
     visualise_tree(data_clean)
 
     print("Clean\n")
-    conf_matrix, _, average_depth = k_fold_cross_validation(data_clean, 10)
+    conf_matrix, average_depth = k_fold_cross_validation(data_clean, 10)
     print_metrics(conf_matrix)
     print(f"Average tree depth: {average_depth}")
 
     print("\nNoisy\n")
-    conf_matrix, _, average_depth = k_fold_cross_validation(data_noisy, 10)
+    conf_matrix, average_depth = k_fold_cross_validation(data_noisy, 10)
     print_metrics(conf_matrix)
     print(f"Average tree depth: {average_depth}")
 
