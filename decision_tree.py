@@ -205,6 +205,7 @@ def k_fold_cross_validation(dataset, k):
 
     confusion_matrix = np.zeros(shape=(num_classes, num_classes), dtype=int)
 
+    # Make of list of k buckets
     for i in range(0, samples + 1, interval):
         data_buckets.append(dataset[shuffled_indices[i:i + interval]])
 
@@ -223,6 +224,13 @@ def k_fold_cross_validation(dataset, k):
 
 
 def nested_k_fold_cross_validation(dataset, k):
+    # Split data k equal ways
+    # Repeat k times:
+    #   Take a subset of data to test
+    #   Repeat k - 1 times:
+    #       Take a subset of data to validate
+    #       Train model using the remaining k-2 subsets + the validation set (for evaluation)
+    #       Evaluate model on the test set
     shuffled_indices = default_rng().permutation(len(dataset))
     data_buckets = []
     sum_depths = 0
@@ -232,7 +240,6 @@ def nested_k_fold_cross_validation(dataset, k):
 
     confusion_matrix = np.zeros(shape=(num_classes, num_classes), dtype=float)
 
-    # Make of list of k buckets
     for i in range(0, samples + 1, interval):
         data_buckets.append(dataset[shuffled_indices[i:i + interval]])
 
@@ -252,7 +259,7 @@ def nested_k_fold_cross_validation(dataset, k):
 
     iterations = k * (k - 1)
     avg_confusion_matrix = confusion_matrix / iterations
-    avg_depth = sum_depths / k
+    avg_depth = sum_depths / iterations
     return avg_confusion_matrix, avg_depth
 
 
