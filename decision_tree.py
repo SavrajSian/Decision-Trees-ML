@@ -263,23 +263,25 @@ def nested_k_fold_cross_validation(dataset, k, num_classes):
 
 def draw_node(model, ax, props, x, y, depth_curr, depth):
     if model.leaf:
-        ax.text(x - 1, y + 0.1, f'Leaf: {str(int(model.value))}', fontsize=6,
+        ax.text(x, y, f'Leaf: {str(int(model.value))}', fontsize=6,
                 verticalalignment='top', bbox=props)
     else:
-        ax.text(x - 4, y + 0.1, f'X{model.attribute} < {model.value}', fontsize=6,
-                verticalalignment='top', bbox=props)
 
-        draw_node(model.left, ax, props, x - (8 * depth) / pow(2, depth_curr), y - 1, depth_curr + 1, depth)
-        draw_node(model.right, ax, props, x + (8 * depth) / pow(2, depth_curr), y - 1, depth_curr + 1, depth)
-        plt.plot([x, x + (8 * depth) / pow(2, depth_curr)], [y, (y - 1)])
-        plt.plot([x, x - (8 * depth) / pow(2, depth_curr)], [y, (y - 1)])
+        ax.text(x, y, f'X{model.attribute} < {model.value}', fontsize=6,
+                verticalalignment='top', bbox=props)
+        draw_node(model.left, ax, props, x - pow(2, depth - (depth_curr + 1)), y - (depth - depth_curr), depth_curr + 1,
+                  depth)
+        draw_node(model.right, ax, props, x + pow(2, depth - (depth_curr + 1)), y - (depth - depth_curr),
+                  depth_curr + 1, depth)
+        plt.plot([x, x - pow(2, depth - (depth_curr + 1))], [y, (y - (depth - depth_curr))])
+        plt.plot([x, x + pow(2, depth - (depth_curr + 1))], [y, (y - (depth - depth_curr))])
 
 
 def draw_tree(model, depth):
     _, ax = plt.subplots()
     props = dict(boxstyle='round', facecolor='wheat', alpha=1)
-    draw_node(model, ax, props, 0.5, 0.5, 1, depth)
-    plt.yticks([0, 10])
+    draw_node(model, ax, props, pow(2, depth - 1), 0, 0, depth)
+    plt.yticks([0, -depth])
     plt.show()
 
 
@@ -289,14 +291,14 @@ def visualise_tree(dataset):
 
 
 def main():
-    # Expect:
-    # python3 decision_tree.py file -prune -k n -draw
-    # i.e. python3 decision_tree.py './wifi_db/clean_dataset.txt' -prune -k 10 -draw
+    # Format: python3 decision_tree.py file -prune -k n -draw
+    # e.g. python3 decision_tree.py './wifi_db/clean_dataset.txt' -k 10 -prune -draw
     # Default will run everything on clean and noisy data
     args = sys.argv[1:]
+
+    file = args[0] if len(args) > 1 else None
+    k = int(args[args.index("-k") + 1]) if "-k" in args else 10
     prune = "-prune" in args
-    k = args[args.index("-k") + 1] if "-k" in args else 10
-    file = args[2] if len(args) > 1 else None
     draw = "-draw" in args
 
     if not file:
@@ -311,12 +313,12 @@ def main():
 
         print("Clean\n")
         conf_matrix, average_depth = k_fold_cross_validation(data_clean, 10, num_classes)
-        print_metrics(conf_matrix)
+        print_metrics(conf_matrix, num_classes)
         print(f"Average tree depth: {average_depth}")
 
         print("\nNoisy\n")
         conf_matrix, average_depth = k_fold_cross_validation(data_noisy, 10, num_classes)
-        print_metrics(conf_matrix)
+        print_metrics(conf_matrix, num_classes)
         print(f"Average tree depth: {average_depth}")
 
         print("\nClean w/ pruning\n")
@@ -326,6 +328,27 @@ def main():
 
         print("\nNoisy w/ pruning\n")
         conf_matrix, average_depth = nested_k_fold_cross_validation(data_noisy, 10, num_classes)
+        print_metrics(conf_matrix, num_classes)
+        print(f"Average tree depth: {average_depth}")
+
+        return
+
+    dataset = np.loadtxt(file)
+    labels = np.unique(dataset[:, -1])
+    num_classes = len(labels)
+
+    if draw:
+        print("Drawing tree\n")
+        visualise_tree(dataset)
+
+    if prune:
+        print("Results w/ pruning\n")
+        conf_matrix, average_depth = nested_k_fold_cross_validation(dataset, 10, num_classes)
+        print_metrics(conf_matrix, num_classes)
+        print(f"Average tree depth: {average_depth}")
+    else:
+        print("Results\n")
+        conf_matrix, average_depth = k_fold_cross_validation(dataset, 10, num_classes)
         print_metrics(conf_matrix, num_classes)
         print(f"Average tree depth: {average_depth}")
 
