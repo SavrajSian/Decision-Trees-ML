@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.random import default_rng
 import matplotlib.pyplot as plt
+import sys  # Needed for argument parsing
 
 
 class Node:
@@ -106,7 +107,7 @@ def update_confusion_matrix(confusion_matrix, model, test):
     return confusion_matrix
 
 
-def calc_recall_precision_f1(confusion_matrix):
+def calc_recall_precision_f1(confusion_matrix, num_classes):
     # Calculate recall and precision rates and f1 measures per class (as percentages)
     precision = []
     recall = []
@@ -177,9 +178,9 @@ def pruned_tree_learning(train, validation):
     return pruned_model
 
 
-def print_metrics(confusion_matrix):
+def print_metrics(confusion_matrix, num_classes):
     accuracy = 100 * (np.diag(confusion_matrix).sum() / confusion_matrix.sum())
-    recall, precision, f1 = calc_recall_precision_f1(confusion_matrix)
+    recall, precision, f1 = calc_recall_precision_f1(confusion_matrix, num_classes)
 
     print("Confusion Matrix:")
     print(confusion_matrix.round(2))
@@ -189,7 +190,7 @@ def print_metrics(confusion_matrix):
     print("F1 score: " + str(f1))
 
 
-def k_fold_cross_validation(dataset, k):
+def k_fold_cross_validation(dataset, k, num_classes):
     # Split data k equal ways
     # Repeat k times:
     #   Take a subset of data to test
@@ -206,7 +207,7 @@ def k_fold_cross_validation(dataset, k):
     confusion_matrix = np.zeros(shape=(num_classes, num_classes), dtype=int)
 
     # Make of list of k buckets
-    for i in range(0, samples + 1, interval):
+    for i in range(0, samples, interval):
         data_buckets.append(dataset[shuffled_indices[i:i + interval]])
 
     for i in range(k):
@@ -218,12 +219,11 @@ def k_fold_cross_validation(dataset, k):
         data_buckets.append(test)  # Add back to end
         confusion_matrix = update_confusion_matrix(confusion_matrix, model, test)
 
-    avg_confusion_matrix = confusion_matrix / k
     avg_depth = sum_depths / k
-    return avg_confusion_matrix, avg_depth
+    return confusion_matrix, avg_depth
 
 
-def nested_k_fold_cross_validation(dataset, k):
+def nested_k_fold_cross_validation(dataset, k, num_classes):
     # Split data k equal ways
     # Repeat k times:
     #   Take a subset of data to test
@@ -235,12 +235,11 @@ def nested_k_fold_cross_validation(dataset, k):
     data_buckets = []
     sum_depths = 0
     samples = dataset.shape[0]
-
     interval = samples // k
 
-    confusion_matrix = np.zeros(shape=(num_classes, num_classes), dtype=float)
+    confusion_matrix = np.zeros(shape=(num_classes, num_classes), dtype=int)
 
-    for i in range(0, samples + 1, interval):
+    for i in range(0, samples, interval):
         data_buckets.append(dataset[shuffled_indices[i:i + interval]])
 
     for i in range(k):
@@ -258,9 +257,8 @@ def nested_k_fold_cross_validation(dataset, k):
         data_buckets.append(test)
 
     iterations = k * (k - 1)
-    avg_confusion_matrix = confusion_matrix / iterations
     avg_depth = sum_depths / iterations
-    return avg_confusion_matrix, avg_depth
+    return confusion_matrix, avg_depth
 
 
 def draw_node(model, ax, props, x, y, depth_curr, depth):
@@ -290,32 +288,47 @@ def visualise_tree(dataset):
     draw_tree(tree, depth)
 
 
+def main():
+    # Expect:
+    # python3 decision_tree.py file -prune -k n -draw
+    # i.e. python3 decision_tree.py './wifi_db/clean_dataset.txt' -prune -k 10 -draw
+    # Default will run everything on clean and noisy data
+    args = sys.argv[1:]
+    prune = "-prune" in args
+    k = args[args.index("-k") + 1] if "-k" in args else 10
+    file = args[2] if len(args) > 1 else None
+    draw = "-draw" in args
+
+    if not file:
+        data_clean = np.loadtxt("./wifi_db/clean_dataset.txt")
+        data_noisy = np.loadtxt("./wifi_db/noisy_dataset.txt")
+
+        labels = np.unique(data_clean[:, -1])
+        num_classes = len(labels)
+
+        print("Drawing tree")
+        visualise_tree(data_clean)
+
+        print("Clean\n")
+        conf_matrix, average_depth = k_fold_cross_validation(data_clean, 10, num_classes)
+        print_metrics(conf_matrix)
+        print(f"Average tree depth: {average_depth}")
+
+        print("\nNoisy\n")
+        conf_matrix, average_depth = k_fold_cross_validation(data_noisy, 10, num_classes)
+        print_metrics(conf_matrix)
+        print(f"Average tree depth: {average_depth}")
+
+        print("\nClean w/ pruning\n")
+        conf_matrix, average_depth = nested_k_fold_cross_validation(data_clean, 10, num_classes)
+        print_metrics(conf_matrix, num_classes)
+        print(f"Average tree depth: {average_depth}")
+
+        print("\nNoisy w/ pruning\n")
+        conf_matrix, average_depth = nested_k_fold_cross_validation(data_noisy, 10, num_classes)
+        print_metrics(conf_matrix, num_classes)
+        print(f"Average tree depth: {average_depth}")
+
+
 if __name__ == "__main__":
-    data_clean = np.loadtxt("./wifi_db/clean_dataset.txt")
-    data_noisy = np.loadtxt("./wifi_db/noisy_dataset.txt")
-
-    labels = np.unique(data_clean[:, -1])
-    num_classes = len(labels)
-
-    print("Drawing tree")
-    visualise_tree(data_clean)
-
-    print("Clean\n")
-    conf_matrix, average_depth = k_fold_cross_validation(data_clean, 10)
-    print_metrics(conf_matrix)
-    print(f"Average tree depth: {average_depth}")
-
-    print("\nNoisy\n")
-    conf_matrix, average_depth = k_fold_cross_validation(data_noisy, 10)
-    print_metrics(conf_matrix)
-    print(f"Average tree depth: {average_depth}")
-
-    print("\nClean w/ pruning\n")
-    conf_matrix, average_depth = nested_k_fold_cross_validation(data_clean, 10)
-    print_metrics(conf_matrix)
-    print(f"Average tree depth: {average_depth}")
-
-    print("\nNoisy w/ pruning\n")
-    conf_matrix, average_depth = nested_k_fold_cross_validation(data_noisy, 10)
-    print_metrics(conf_matrix)
-    print(f"Average tree depth: {average_depth}")
+    main()
