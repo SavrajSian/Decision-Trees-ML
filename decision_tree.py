@@ -290,48 +290,13 @@ def visualise_tree(dataset):
     draw_tree(tree, depth)
 
 
-def main():
+def main(args):
     # Format: python3 decision_tree.py file -prune -k n -draw
     # e.g. python3 decision_tree.py './wifi_db/clean_dataset.txt' -k 10 -prune -draw
-    # Default will run everything on clean and noisy data
-    args = sys.argv[1:]
-
-    file = args[0] if len(args) > 1 else None
+    file = args[0] if len(args) > 0 else None
     k = int(args[args.index("-k") + 1]) if "-k" in args else 10
     pruning = "-prune" in args
     draw = "-draw" in args
-
-    if not file:
-        data_clean = np.loadtxt("./wifi_db/clean_dataset.txt")
-        data_noisy = np.loadtxt("./wifi_db/noisy_dataset.txt")
-
-        labels = np.unique(data_clean[:, -1])
-        num_classes = len(labels)
-
-        print("Drawing tree")
-        visualise_tree(data_clean)
-
-        print("Clean\n")
-        conf_matrix, average_depth = k_fold_cross_validation(data_clean, 10, num_classes)
-        print_metrics(conf_matrix, num_classes)
-        print(f"Average tree depth: {average_depth}")
-
-        print("\nNoisy\n")
-        conf_matrix, average_depth = k_fold_cross_validation(data_noisy, 10, num_classes)
-        print_metrics(conf_matrix, num_classes)
-        print(f"Average tree depth: {average_depth}")
-
-        print("\nClean w/ pruning\n")
-        conf_matrix, average_depth = nested_k_fold_cross_validation(data_clean, 10, num_classes)
-        print_metrics(conf_matrix, num_classes)
-        print(f"Average tree depth: {average_depth}")
-
-        print("\nNoisy w/ pruning\n")
-        conf_matrix, average_depth = nested_k_fold_cross_validation(data_noisy, 10, num_classes)
-        print_metrics(conf_matrix, num_classes)
-        print(f"Average tree depth: {average_depth}")
-
-        return
 
     dataset = np.loadtxt(file)
     labels = np.unique(dataset[:, -1])
@@ -354,4 +319,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
