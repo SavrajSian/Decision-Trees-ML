@@ -298,7 +298,7 @@ def main():
 
     file = args[0] if len(args) > 1 else None
     k = int(args[args.index("-k") + 1]) if "-k" in args else 10
-    prune = "-prune" in args
+    pruning = "-prune" in args
     draw = "-draw" in args
 
     if not file:
@@ -341,14 +341,14 @@ def main():
         print("Drawing tree\n")
         visualise_tree(dataset)
 
-    if prune:
+    if pruning:
         print("Results w/ pruning\n")
-        conf_matrix, average_depth = nested_k_fold_cross_validation(dataset, 10, num_classes)
+        conf_matrix, average_depth = nested_k_fold_cross_validation(dataset, k, num_classes)
         print_metrics(conf_matrix, num_classes)
         print(f"Average tree depth: {average_depth}")
     else:
         print("Results\n")
-        conf_matrix, average_depth = k_fold_cross_validation(dataset, 10, num_classes)
+        conf_matrix, average_depth = k_fold_cross_validation(dataset, k, num_classes)
         print_metrics(conf_matrix, num_classes)
         print(f"Average tree depth: {average_depth}")
 
