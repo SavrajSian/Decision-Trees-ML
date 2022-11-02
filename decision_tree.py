@@ -291,8 +291,8 @@ def visualise_tree(dataset):
 
 
 def main(args):
-    # Format: python3 decision_tree.py file -prune -k n -draw
-    # e.g. python3 decision_tree.py './wifi_db/clean_dataset.txt' -k 10 -prune -draw
+    # Format: python3 decision_tree.py filepath -k n -prune -draw (SEE README)
+    # e.g. python3 decision_tree.py './wifi_db/clean_dataset.txt' -k 8 -prune -draw
     file = args[0] if len(args) > 0 else None
     k = int(args[args.index("-k") + 1]) if "-k" in args else 10
     pruning = "-prune" in args
